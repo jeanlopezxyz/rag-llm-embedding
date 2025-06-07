@@ -1,0 +1,80 @@
+# values.yaml - Sección populateDbJob
+populateDbJob:
+  # Imagen del contenedor
+  image:
+    repository: "quay.io/ecosystem-appeng/event-embeddings-generator"
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  
+  # Secret para pull de imagen privada (opcional)
+  # imagePullSecrets:
+  #   - name: my-registry-secret
+  
+  # Base de datos fuente (PostgreSQL con eventos)
+  sourceDb:
+    # Opción 1: Usar un secret
+    secretName: events-db-secret
+    
+    # Opción 2: Valores directos (no recomendado para producción)
+    # host: postgres-events.default.svc.cluster.local
+    # port: "5432"
+    # name: events_db
+    # user: events_user
+    # password: events_pass
+  
+  # Base de datos destino se configura automáticamente si global.db.type = "EDB"
+  # Para override manual:
+  # destDb:
+  #   host: pgvector.default.svc.cluster.local
+  #   port: "5432"
+  #   name: vector_db
+  #   user: vector_user
+  #   password: vector_pass
+  
+  # Configuración de embeddings
+  embeddings:
+    modelName: "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+    dimension: "768"
+    device: "cpu"  # o "cuda" para GPU
+    batchSize: "32"
+  
+  # Modo de procesamiento
+  incrementalMode: "auto"  # auto, true, false
+  lookbackHours: "24"
+  
+  # Control de inicialización
+  initDatabases: "true"    # Crear tablas si no existen
+  loadTestData: "false"     # Cargar datos de prueba
+  
+  # Configuración del Job
+  backoffLimit: 3
+  restartPolicy: Never
+  ttlSecondsAfterFinished: 3600  # Limpiar después de 1 hora
+  activeDeadlineSeconds: 7200     # Timeout de 2 horas
+  
+  # Recursos
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+  
+  # Tamaño del cache
+  cacheSize: "10Gi"
+  
+  # Seguridad
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 0
+    fsGroup: 0
+  
+  # Para GPU (opcional)
+  # nodeSelector:
+  #   nvidia.com/gpu: "true"
+  # tolerations:
+  #   - key: nvidia.com/gpu
+  #     operator: Exists
+  #     effect: NoSchedule

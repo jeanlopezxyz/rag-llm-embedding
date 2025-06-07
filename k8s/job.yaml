@@ -1,0 +1,174 @@
+# Job de Kubernetes
+# k8s/job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: populate-events-embeddings-{{ include "rag-llm.fullname" . }}
+  labels:
+    {{- include "rag-llm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: "embeddings-job"
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "rag-llm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: "embeddings-job"
+    spec:
+    {{- with .Values.populateDbJob.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.populateDbJob.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      containers:
+      - name: embeddings-generator
+        image: "{{ .Values.populateDbJob.image.repository }}:{{ .Values.populateDbJob.image.tag }}"
+        imagePullPolicy: {{ .Values.populateDbJob.image.pullPolicy }}
+        
+        # Comando opcional (por defecto usa ENTRYPOINT del Dockerfile)
+        {{- with .Values.populateDbJob.command }}
+        command: {{ toYaml . | nindent 10 }}
+        {{- end }}
+        
+        {{- with .Values.populateDbJob.args }}
+        args: {{ toYaml . | nindent 10 }}
+        {{- end }}
+        
+        env:
+        # Base de datos fuente
+        {{- if .Values.populateDbJob.sourceDb.secretName }}
+        - name: DB_SOURCE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.populateDbJob.sourceDb.secretName }}
+              key: host
+        - name: DB_SOURCE_PORT
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.populateDbJob.sourceDb.secretName }}
+              key: port
+        - name: DB_SOURCE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.populateDbJob.sourceDb.secretName }}
+              key: dbname
+        - name: DB_SOURCE_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.populateDbJob.sourceDb.secretName }}
+              key: username
+        - name: DB_SOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.populateDbJob.sourceDb.secretName }}
+              key: password
+        {{- else }}
+        {{- range $key, $value := .Values.populateDbJob.sourceDb }}
+        - name: DB_SOURCE_{{ $key | upper }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        
+        # Base de datos destino (PGVector)
+        {{- if eq .Values.global.db.type "EDB" }}
+        - name: DB_DEST_HOST
+          valueFrom:
+            secretKeyRef:
+              name: vectordb-app
+              key: host
+        - name: DB_DEST_PORT
+          valueFrom:
+            secretKeyRef:
+              name: vectordb-app
+              key: port
+        - name: DB_DEST_NAME
+          valueFrom:
+            secretKeyRef:
+              name: vectordb-app
+              key: dbname
+        - name: DB_DEST_USER
+          valueFrom:
+            secretKeyRef:
+              name: vectordb-app
+              key: username
+        - name: DB_DEST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: vectordb-app
+              key: password
+        {{- else if .Values.populateDbJob.destDb }}
+        {{- range $key, $value := .Values.populateDbJob.destDb }}
+        - name: DB_DEST_{{ $key | upper }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        
+        # Configuración de embeddings
+        {{- with .Values.populateDbJob.embeddings }}
+        - name: EMBEDDING_MODEL_NAME
+          value: {{ .modelName | default "sentence-transformers/multi-qa-mpnet-base-dot-v1" | quote }}
+        - name: EMBEDDING_DIM
+          value: {{ .dimension | default "768" | quote }}
+        - name: EMBEDDING_DEVICE
+          value: {{ .device | default "cpu" | quote }}
+        - name: BATCH_SIZE
+          value: {{ .batchSize | default "32" | quote }}
+        {{- end }}
+        
+        # Configuración de procesamiento
+        - name: INCREMENTAL_MODE
+          value: {{ .Values.populateDbJob.incrementalMode | default "auto" | quote }}
+        - name: LOOKBACK_HOURS
+          value: {{ .Values.populateDbJob.lookbackHours | default "24" | quote }}
+        
+        # Control de inicialización
+        - name: INIT_DBS
+          value: {{ .Values.populateDbJob.initDatabases | default "true" | quote }}
+        - name: LOAD_TEST_DATA
+          value: {{ .Values.populateDbJob.loadTestData | default "false" | quote }}
+        
+        # Cache
+        - name: TRANSFORMERS_CACHE
+          value: "/cache/.cache"
+        - name: SENTENCE_TRANSFORMERS_HOME
+          value: "/cache/.cache"
+        
+        {{- with .Values.populateDbJob.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        
+        volumeMounts:
+        - name: cache
+          mountPath: /cache
+        {{- with .Values.populateDbJob.volumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      
+      volumes:
+      - name: cache
+        emptyDir:
+          sizeLimit: {{ .Values.populateDbJob.cacheSize | default "10Gi" }}
+      {{- with .Values.populateDbJob.volumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      
+      restartPolicy: {{ .Values.populateDbJob.restartPolicy | default "Never" }}
+      {{- with .Values.populateDbJob.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.populateDbJob.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.populateDbJob.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      
+  backoffLimit: {{ .Values.populateDbJob.backoffLimit | default 3 }}
+  ttlSecondsAfterFinished: {{ .Values.populateDbJob.ttlSecondsAfterFinished | default 3600 }}
+  activeDeadlineSeconds: {{ .Values.populateDbJob.activeDeadlineSeconds | default 7200 }}

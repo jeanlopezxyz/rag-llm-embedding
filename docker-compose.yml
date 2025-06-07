@@ -1,0 +1,90 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  # Base de datos fuente (PostgreSQL con eventos)
+  postgres-source:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: events_db
+      POSTGRES_USER: events_user
+      POSTGRES_PASSWORD: events_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_source_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U events_user -d events_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Base de datos destino (PGVector)
+  postgres-vector:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: vector_db
+      POSTGRES_USER: vector_user
+      POSTGRES_PASSWORD: vector_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_vector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vector_user -d vector_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Generador de embeddings
+  embeddings-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres-source:
+        condition: service_healthy
+      postgres-vector:
+        condition: service_healthy
+    environment:
+      # Base de datos fuente
+      DB_SOURCE_HOST: postgres-source
+      DB_SOURCE_PORT: 5432
+      DB_SOURCE_NAME: events_db
+      DB_SOURCE_USER: events_user
+      DB_SOURCE_PASSWORD: events_pass
+      
+      # Base de datos destino
+      DB_DEST_HOST: postgres-vector
+      DB_DEST_PORT: 5432
+      DB_DEST_NAME: vector_db
+      DB_DEST_USER: vector_user
+      DB_DEST_PASSWORD: vector_pass
+      
+      # Configuración de embeddings
+      EMBEDDING_MODEL_NAME: sentence-transformers/multi-qa-mpnet-base-dot-v1
+      EMBEDDING_DIM: 768
+      EMBEDDING_DEVICE: cpu
+      BATCH_SIZE: 16
+      
+      # Configuración de procesamiento
+      INCREMENTAL_MODE: auto
+      LOOKBACK_HOURS: 24
+      
+      # Inicialización
+      INIT_DBS: "true"
+      LOAD_TEST_DATA: "true"
+    
+    volumes:
+      - ./src:/app/src:ro,z
+      - ./sql:/app/sql:ro,z
+      - embeddings_cache:/cache
+    
+    # Para desarrollo, mantener el contenedor vivo
+    command: ["generate-embeddings"]
+    # command: ["shell"]  # Descomentar para debugging
+
+volumes:
+  postgres_source_data:
+  postgres_vector_data:
+  embeddings_cache:
