@@ -25,11 +25,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --upgrade sentence-transformers
 
 # Verificar instalación
+# MODIFICACIÓN: Se cambia la verificación de psycopg2 a psycopg (v3)
 RUN python -c "import numpy; print(f'NumPy: {numpy.__version__}')" && \
-    python -c "import psycopg2; print(f'psycopg2: {psycopg2.__version__}')" && \
+    python -c "import psycopg; print(f'psycopg (v3) installed successfully')" && \
     python -c "import pgvector; print(f'pgvector installed')" && \
     python -c "import sentence_transformers; print(f'sentence-transformers: {sentence_transformers.__version__}')"
-
 # Copiar código fuente
 COPY sql/ /app/sql/
 COPY src/ /app/src/

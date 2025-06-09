@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - network_llm
 
   # Base de datos destino (PGVector)
   postgres-vector:
@@ -35,6 +37,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - network_llm
 
   # Generador de embeddings
   embeddings-generator:
@@ -88,3 +92,8 @@ volumes:
   postgres_source_data:
   postgres_vector_data:
   embeddings_cache:
+
+networks:
+  network_llm:
+    external: true
+    name: llm
