@@ -2,7 +2,7 @@
 FROM python:3.11
 
 # Metadatos
-LABEL maintainer="your-team@company.com"
+LABEL maintainer="jeanlopez@linux.com"
 LABEL description="Event Embeddings Generator for PGVector"
 LABEL version="1.0.0"
 
@@ -25,7 +25,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --upgrade sentence-transformers
 
 # Verificar instalación
-# MODIFICACIÓN: Se cambia la verificación de psycopg2 a psycopg (v3)
 RUN python -c "import numpy; print(f'NumPy: {numpy.__version__}')" && \
     python -c "import psycopg; print(f'psycopg (v3) installed successfully')" && \
     python -c "import pgvector; print(f'pgvector installed')" && \

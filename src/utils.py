@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
-# MODIFICACIÓN: Se cambia psycopg2 por la librería moderna psycopg.
 import psycopg
 from psycopg.connection import Connection as PostgresConnection
 
